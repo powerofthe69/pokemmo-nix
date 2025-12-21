@@ -1,0 +1,42 @@
+name: Update PokeMMO
+
+on:
+  workflow_dispatch: # Allows manual triggering
+  schedule:
+    - cron: "0 5 * * *"
+
+jobs:
+  update-flake:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix & pass experimental-features in workflow globally
+        uses: cachix/install-nix-action@v27
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Run update script
+        run: |
+          cd pkgs
+          bash update.sh
+
+      - name: Update flake.lock
+        run: |
+          nix flake update
+
+      - name: Validate that flake builds after updating # best practice
+        run: nix build .
+
+      - name: Validate overlay output
+        run: nix flake check
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update PokeMMO client and flake.lock"
+          file_pattern: "pkgs/sources.json flake.lock"
